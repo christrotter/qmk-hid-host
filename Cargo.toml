@@ -37,6 +37,11 @@ objc2-foundation = { version = "0.2.2", features = ["all"] }
 block2 = "0.5.1"
 coreaudio-sys = "0.2.16"
 coreaudio-rs = "0.12.1"
+# for making http requests
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+serde_json = "1.0"
+# for making json api calls to wled
+wled-json-api-library = { path = "../wled-json-api-library" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 [dependencies.windows]
