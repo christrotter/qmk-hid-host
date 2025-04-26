@@ -108,7 +108,6 @@ impl Keyboard {
                         std::thread::sleep(std::time::Duration::from_millis(100));
                     }
                 }
-
                 std::thread::sleep(std::time::Duration::from_millis(reconnect_delay));
             }
         });
@@ -179,6 +178,7 @@ fn start_write(name: &String, device: HidDevice, is_connected: &Arc<AtomicBool>,
     // tracing::info!("{}: starting write thread", name);
     std::thread::spawn(move || loop {
         tracing::debug!("{}: waiting for data to send...", name);
+        std::thread::sleep(std::time::Duration::from_millis(10));
         if let Ok(mut received) = host_to_device_receiver.try_recv() {
             // tracing::debug!("{}: sending {:?}", name, received);
             received.truncate(33);
@@ -208,7 +208,7 @@ fn start_read(name: &String, device: HidDevice, is_connected: &Arc<AtomicBool>, 
     let mut data = [0u8; 32];
     std::thread::spawn(move || loop {
         tracing::debug!("{}: waiting for data from keyboard...", name);
-
+        std::thread::sleep(std::time::Duration::from_millis(10));
         if let Ok(result) = device.read(data.as_mut()) {
             tracing::debug!("{}: received {:?}", name, data);
             if result > 0 {
