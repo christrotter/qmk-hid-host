@@ -11,8 +11,6 @@ use reqwest::blocking::Client;
 use reqwest::Url;
 use serde_json::json;
 use std::time::Duration;
-use wled_json_api_library::structures::{cfg::cfg_def::Def, cfg::Cfg, state::State};
-use wled_json_api_library::wled::Wled;
 
 pub struct Keyboard {
     name: String,

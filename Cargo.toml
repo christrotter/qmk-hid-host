@@ -40,8 +40,6 @@ coreaudio-rs = "0.12.1"
 # for making http requests
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 serde_json = "1.0"
-# for making json api calls to wled
-wled-json-api-library = { path = "../wled-json-api-library" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 [dependencies.windows]
