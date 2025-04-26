@@ -3,12 +3,9 @@ use std::sync::Arc;
 
 use hidapi::{DeviceInfo, HidApi, HidDevice};
 use tokio::sync::{broadcast, mpsc};
-use tracing_subscriber::layer;
 
 use crate::config::Device;
-use crate::data_type::DataType;
 use reqwest::blocking::Client;
-use reqwest::Url;
 use serde_json::json;
 use std::time::Duration;
 
@@ -109,32 +106,6 @@ impl Keyboard {
                 std::thread::sleep(std::time::Duration::from_millis(reconnect_delay));
             }
         });
-    }
-}
-
-fn handle_received_data(name: &String, received_data: &[u8]) {
-    tracing::info!("{}: handling received data {:?}", name, received_data);
-
-    // Parse the received data to determine the type of API call
-    if received_data.is_empty() {
-        tracing::warn!("{}: received empty data, skipping API call", name);
-        return;
-    }
-    // so this is going to be where we set our type of API call - but, it's currently returning a padded 0...
-    match received_data[2] {
-        6 => {
-            tracing::info!("{}: making API call type 1", name);
-            // Example API call type 1
-            // make_api_call_type_1(name, received_data);
-        }
-        0x02 => {
-            tracing::info!("{}: making API call type 2", name);
-            // thing
-        }
-        _ => {
-            tracing::warn!("{}: unknown data type, skipping API call", name);
-            tracing::info!("{}: received data content: {:?}", name, received_data);
-        }
     }
 }
 
