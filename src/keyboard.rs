@@ -52,6 +52,7 @@ impl Keyboard {
         device_to_host_sender: broadcast::Sender<Vec<u8>>,
         is_connected_sender: mpsc::Sender<bool>,
     ) {
+        // Clone variables for use in the thread
         let name = self.name.clone();
         let pid = self.product_id;
         let usage = self.usage;
@@ -60,17 +61,46 @@ impl Keyboard {
         let is_connected = self.is_connected.clone();
 
         std::thread::spawn(move || {
+            // Thread handles and termination flags
+            let mut write_thread: Option<std::thread::JoinHandle<()>> = None;
+            let mut read_thread: Option<std::thread::JoinHandle<()>> = None;
+            let terminate_flag = Arc::new(AtomicBool::new(false));
+
             tracing::debug!("Waiting for {}...", name);
             loop {
                 tracing::debug!("{}: trying to connect...", name);
 
+                // Set terminate flag to true to stop any existing threads
+                terminate_flag.store(true, Relaxed);
+
+                // Join previous threads if they exist
+                if let Some(thread) = write_thread.take() {
+                    let _ = thread.join();
+                    tracing::info!("{}: previous write thread joined", name);
+                }
+
+                if let Some(thread) = read_thread.take() {
+                    let _ = thread.join();
+                    tracing::info!("{}: previous read thread joined", name);
+                }
+
+                // Reset terminate flag for new threads
+                terminate_flag.store(false, Relaxed);
+
+                // Continue with device connection logic...
                 let hid_api = HidApi::new().unwrap();
                 if let Some(device_info) = Self::get_device_info(&hid_api, &pid, &usage, &usage_page) {
                     let reconnect_timeout = 1000;
                     loop {
                         match device_info.open_device(&hid_api) {
                             Ok(device) => {
-                                start_write(&name, device, &is_connected, &host_to_device_sender);
+                                write_thread = Some(start_write(
+                                    &name,
+                                    device,
+                                    &is_connected,
+                                    &host_to_device_sender,
+                                    terminate_flag.clone(),
+                                ));
                                 break;
                             }
                             Err(err) => tracing::error!("{}", err),
@@ -80,7 +110,13 @@ impl Keyboard {
                     loop {
                         match device_info.open_device(&hid_api) {
                             Ok(device) => {
-                                start_read(&name, device, &is_connected, &device_to_host_sender);
+                                read_thread = Some(start_read(
+                                    &name,
+                                    device,
+                                    &is_connected,
+                                    &device_to_host_sender,
+                                    terminate_flag.clone(),
+                                ));
                                 break;
                             }
                             Err(err) => tracing::error!("{}", err),
@@ -139,62 +175,72 @@ fn make_api_call_type_1(name: &String, data: &[u8; 32]) {
     }
 }
 
-fn start_write(name: &String, device: HidDevice, is_connected: &Arc<AtomicBool>, host_to_device_sender: &broadcast::Sender<Vec<u8>>) {
+fn start_write(
+    name: &String,
+    device: HidDevice,
+    is_connected: &Arc<AtomicBool>,
+    host_to_device_sender: &broadcast::Sender<Vec<u8>>,
+    terminate_flag: Arc<AtomicBool>,
+) -> std::thread::JoinHandle<()> {
     let name = name.clone();
     let is_connected = is_connected.clone();
-    // tracing::info!("is_connected: {:?}", is_connected.load(Relaxed));
     let mut host_to_device_receiver = host_to_device_sender.subscribe();
-    // tracing::info!("{}: starting write thread", name);
-    std::thread::spawn(move || loop {
-        tracing::debug!("{}: waiting for data to send...", name);
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        if let Ok(mut received) = host_to_device_receiver.try_recv() {
-            // tracing::debug!("{}: sending {:?}", name, received);
-            received.truncate(33);
-            received.resize_with(33, Default::default);
-            // received.insert(0, 0);
-            received.pop();
-            // tracing::info!("write: device: {:?}", device.get_product_string());
-            // tracing::info!("write: data:   {:?}", <Vec<u8> as AsMut<[u8]>>::as_mut(&mut received));
-            match device.write(received.as_mut()) {
-                Ok(bytes_written) => {
-                    tracing::debug!("{}: successfully wrote {} bytes", name, bytes_written);
-                }
-                Err(err) => {
-                    tracing::error!("{}: failed to write to device: {}", name, err);
-                    is_connected.store(false, Relaxed);
-                    break;
+
+    std::thread::spawn(move || {
+        while !terminate_flag.load(Relaxed) {
+            tracing::debug!("{}: waiting for data to send...", name);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+
+            // Use try_recv() to prevent blocking indefinitely
+            if let Ok(mut received) = host_to_device_receiver.try_recv() {
+                // Process data...
+                match device.write(received.as_mut()) {
+                    Ok(bytes_written) => {
+                        tracing::debug!("{}: successfully wrote {} bytes", name, bytes_written);
+                    }
+                    Err(err) => {
+                        tracing::error!("{}: failed to write to device: {}", name, err);
+                        is_connected.store(false, Relaxed);
+                        break;
+                    }
                 }
             }
         }
-    });
+        tracing::info!("{}: write thread terminated", name);
+    })
 }
 
-fn start_read(name: &String, device: HidDevice, is_connected: &Arc<AtomicBool>, device_to_host_sender: &broadcast::Sender<Vec<u8>>) {
+fn start_read(
+    name: &String,
+    device: HidDevice,
+    is_connected: &Arc<AtomicBool>,
+    device_to_host_sender: &broadcast::Sender<Vec<u8>>,
+    terminate_flag: Arc<AtomicBool>,
+) -> std::thread::JoinHandle<()> {
     let name = name.clone();
     let is_connected = is_connected.clone();
     let device_to_host_sender = device_to_host_sender.clone();
     let mut data = [0u8; 32];
-    std::thread::spawn(move || loop {
-        tracing::debug!("{}: waiting for data from keyboard...", name);
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        if let Ok(result) = device.read(data.as_mut()) {
-            tracing::debug!("{}: received {:?}", name, data);
-            if result > 0 {
-                if data[1] == 206 {
-                    tracing::info!("{}: CE found {:?}", name, data);
-                    make_api_call_type_1(&name, &data);
-                    // make api call here
-                    // break;
+
+    std::thread::spawn(move || {
+        while !terminate_flag.load(Relaxed) {
+            tracing::debug!("{}: waiting for data from keyboard...", name);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+
+            // Set a timeout for device.read or use a non-blocking approach if available
+            match device.read_timeout(data.as_mut(), 100) {
+                Ok(result) if result > 0 => {
+                    // Process data...
+                    let _ = device_to_host_sender.send(data.to_vec());
                 }
-                // tracing::info!("reading from: {:?}", device.get_product_string());
-                // tracing::info!("read data: {} {}", data[0], data[1]);
-                // handle_received_data(&name, &received);
-                let _ = device_to_host_sender.send(data.to_vec());
+                Err(err) => {
+                    tracing::error!("{}: failed to read from device: {}", name, err);
+                    is_connected.store(false, Relaxed);
+                    break;
+                }
+                _ => {} // No data available
             }
-        } else {
-            is_connected.store(false, Relaxed);
-            break;
         }
-    });
+        tracing::info!("{}: read thread terminated", name);
+    })
 }
