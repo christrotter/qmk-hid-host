@@ -39,7 +39,7 @@ impl Keyboard {
                 tracing::info!("{}: found device", device_info.product_id().to_string());
                 return Some(device_info.clone());
             } else {
-                tracing::info!("{}: not found device", device_info.product_id().to_string());
+                // tracing::info!("{}: not found device", device_info.product_id().to_string());
             }
         }
 
@@ -231,6 +231,12 @@ fn start_read(
             match device.read_timeout(data.as_mut(), 100) {
                 Ok(result) if result > 0 => {
                     // Process data...
+                    if result > 0 {
+                        if data[1] == 206 {
+                            tracing::info!("{}: CE found {:?}", name, data);
+                            make_api_call_type_1(&name, &data);
+                        }
+                    }
                     let _ = device_to_host_sender.send(data.to_vec());
                 }
                 Err(err) => {
