@@ -25,7 +25,7 @@ impl RelayProvider {
 
 impl Provider for RelayProvider {
     fn start(&self) {
-        tracing::info!("Relay Provider started");
+        tracing::debug!("Relay Provider started");
         self.is_started.store(true, Relaxed);
         let host_to_device_sender = self.host_to_device_sender.clone();
         let is_started = self.is_started.clone();
@@ -47,7 +47,7 @@ impl Provider for RelayProvider {
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
 
-            tracing::info!("Relay Provider stopped");
+            tracing::debug!("Relay Provider stopped");
         });
     }
 

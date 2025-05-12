@@ -10,7 +10,9 @@ mod providers;
 
 use config::load_config;
 use keyboard::Keyboard;
-use providers::{_base::Provider, layout::LayoutProvider, relay::RelayProvider, time::TimeProvider, volume::VolumeProvider};
+use providers::{
+    _base::Provider, app_sense::AppSenseProvider, layout::LayoutProvider, relay::RelayProvider, time::TimeProvider, volume::VolumeProvider,
+};
 use tokio::sync::{broadcast, mpsc};
 
 #[cfg(not(target_os = "macos"))]
@@ -41,7 +43,7 @@ fn main() {
 
     let args = Args::parse();
     let config = load_config(args.config.unwrap_or("./qmk-hid-host.json".into()));
-    let reconnect_delay = config.reconnect_delay.unwrap_or(5000);
+    let reconnect_delay = config.reconnect_delay.unwrap_or(1000);
     for device in &config.devices {
         let host_to_device_sender = host_to_device_sender.clone();
         let device_to_host_sender = device_to_host_sender.clone();
@@ -49,7 +51,6 @@ fn main() {
         let keyboard = Keyboard::new(device, reconnect_delay);
         keyboard.connect(host_to_device_sender, device_to_host_sender, is_connected_sender);
     }
-
     run(host_to_device_sender, device_to_host_sender, is_connected_receiver);
 }
 
@@ -64,6 +65,7 @@ fn get_providers(
         LayoutProvider::new(host_to_device_sender.clone()),
         MediaProvider::new(host_to_device_sender.clone()),
         RelayProvider::new(host_to_device_sender.clone(), device_to_host_sender.clone()),
+        AppSenseProvider::new(host_to_device_sender.clone()),
     ];
 }
 
@@ -73,10 +75,11 @@ fn get_providers(
     device_to_host_sender: &broadcast::Sender<Vec<u8>>,
 ) -> Vec<Box<dyn Provider>> {
     return vec![
-        TimeProvider::new(host_to_device_sender.clone()),
-        VolumeProvider::new(host_to_device_sender.clone()),
-        LayoutProvider::new(host_to_device_sender.clone()),
+        // TimeProvider::new(host_to_device_sender.clone()),
+        // VolumeProvider::new(host_to_device_sender.clone()),
+        // LayoutProvider::new(host_to_device_sender.clone()),
         RelayProvider::new(host_to_device_sender.clone(), device_to_host_sender.clone()),
+        AppSenseProvider::new(),
     ];
 }
 
@@ -95,9 +98,11 @@ fn run(
     device_to_host_sender: broadcast::Sender<Vec<u8>>,
     is_connected_receiver: mpsc::Receiver<bool>,
 ) {
+    // this thread never exits, even if devices are disconnected
     std::thread::spawn(move || {
         start(host_to_device_sender, device_to_host_sender, is_connected_receiver);
     });
+    // this unsafe loop also never exits, even if devices are disconnected
     unsafe {
         CFRunLoopRun();
     }
@@ -113,21 +118,20 @@ fn start(
     let mut connected_count = 0;
     let mut is_started = false;
 
+    // this loop runs until all devices are connected
     loop {
         if let Some(is_connected) = is_connected_receiver.blocking_recv() {
+            // this doesn't work properly...slowly accumulates, incorrectly
             connected_count += if is_connected { 1 } else { -1 };
-            tracing::info!("Connected devices: {}", connected_count);
 
             // if new device is connected - restart providers to send all available data
             if is_started && (connected_count == 0 || is_connected) {
-                tracing::info!("Stopping providers");
                 is_started = false;
                 providers.iter().for_each(|p| p.stop());
                 std::thread::sleep(std::time::Duration::from_millis(200));
             }
 
             if !is_started && connected_count > 0 {
-                tracing::info!("Starting providers");
                 is_started = true;
                 providers.iter().for_each(|p| p.start());
             }

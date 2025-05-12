@@ -52,7 +52,7 @@ impl Provider for TimeProvider {
                 let time = get_time();
                 if synced_time != time {
                     synced_time = time;
-                    // send_data(&synced_time, &host_to_device_sender);
+                    send_data(&synced_time, &host_to_device_sender);
                 }
 
                 std::thread::sleep(std::time::Duration::from_millis(100));
