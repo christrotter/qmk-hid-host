@@ -51,78 +51,118 @@ impl Provider for AppSenseProvider {
 
         *self.thread_handle.lock().unwrap() = Some(thread::spawn(move || {
             unsafe {
+                // Create autorelease pool
                 let pool: *mut AnyObject = msg_send![class!(NSAutoreleasePool), new];
+                if pool.is_null() {
+                    tracing::error!("Failed to create NSAutoreleasePool");
+                    return;
+                }
 
                 let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+                if workspace.is_null() {
+                    tracing::error!("Failed to get sharedWorkspace");
+                    return;
+                }
+
                 let nc: *mut AnyObject = msg_send![workspace, notificationCenter];
+                if nc.is_null() {
+                    tracing::error!("Failed to get notificationCenter");
+                    return;
+                }
 
-                // Create observer class
+                // Create observer class - use a unique name with timestamp
                 let superclass = class!(NSObject);
-                let mut class_decl = runtime::ClassBuilder::new("NotificationObserver", superclass).unwrap();
+                let mut attempts = 0;
+                let mut class_decl = None;
 
-                extern "C" fn handle_notification(_this: *mut AnyObject, _sel: Sel, notification: *mut AnyObject) {
-                    unsafe {
-                        let user_info: *mut AnyObject = msg_send![notification, userInfo];
-                        let key = NSString::from_str("NSWorkspaceApplicationKey");
-                        let app: *mut AnyObject = msg_send![user_info, objectForKey:&*key];
+                while attempts < 5 && class_decl.is_none() {
+                    let timestamp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_nanos();
+                    let class_name = format!("NotificationObserver_{}_{}", timestamp, attempts);
 
-                        if !app.is_null() {
-                            let name: *mut AnyObject = msg_send![app, localizedName];
-                            let bundle_id: *mut AnyObject = msg_send![app, bundleIdentifier];
+                    if runtime::Class::get(class_name.as_str()).is_none() {
+                        class_decl = runtime::ClassBuilder::new(&class_name, superclass);
+                    }
 
-                            if !name.is_null() && !bundle_id.is_null() {
-                                let name_str: &NSString = unsafe { &*(name as *const NSString) };
-                                let app_name = name_str.to_string();
-
-                                let bundle_str: &NSString = unsafe { &*(bundle_id as *const NSString) };
-                                let bundle = bundle_str.to_string();
-
-                                // if let Some(ptr) = ACTIVE_APP_PTR {
-                                //     let active_app = &**ptr;
-                                //     let mut app_info = active_app.lock().unwrap();
-                                //     *app_info = format!("{} ({})", app_name, bundle);
-                                // }
-                                tracing::info!("Application changed to: {:?}", app_name);
-                            }
-                        }
+                    attempts += 1;
+                    if class_decl.is_none() && attempts < 5 {
+                        // Small delay before retry
+                        thread::sleep(Duration::from_millis(1));
                     }
                 }
 
-                class_decl.add_method(
-                    sel!(handleNotification:),
-                    handle_notification as extern "C" fn(*mut AnyObject, Sel, *mut AnyObject),
-                );
+                if let Some(mut class_decl) = class_decl {
+                    extern "C" fn handle_notification(_this: *mut AnyObject, _sel: Sel, notification: *mut AnyObject) {
+                        unsafe {
+                            let user_info: *mut AnyObject = msg_send![notification, userInfo];
+                            let value: *mut AnyObject =
+                                msg_send![user_info, objectForKey:&*NSString::from_str("NSWorkspaceApplicationKey")];
+                            if value.is_null() {
+                                tracing::error!("Method call returned null");
+                                return;
+                            }
 
-                let observer_class = class_decl.register();
-                let observer: *mut AnyObject = msg_send![observer_class, new];
+                            let app: *mut AnyObject = value;
 
-                // Define the notification name
-                let notification_name = NSString::from_str("NSWorkspaceDidActivateApplicationNotification");
+                            if !app.is_null() {
+                                let name: *mut AnyObject = msg_send![app, localizedName];
+                                let bundle_id: *mut AnyObject = msg_send![app, bundleIdentifier];
 
-                // Register for notifications
-                let _: () = msg_send![nc,
-                    addObserver:observer
-                    selector:sel!(handleNotification:)
-                    name:&*notification_name
-                    object:ptr::null_mut::<AnyObject>()
-                ];
+                                if !name.is_null() && !bundle_id.is_null() {
+                                    let name_str: &NSString = unsafe { &*(name as *const NSString) };
+                                    let app_name = name_str.to_string();
 
-                // Keep thread running
-                while *running.lock().unwrap() {
-                    // Sleep to prevent high CPU usage
-                    thread::sleep(Duration::from_millis(100));
+                                    let bundle_str: &NSString = unsafe { &*(bundle_id as *const NSString) };
+                                    let bundle = bundle_str.to_string();
+
+                                    tracing::info!("Application changed to: {:?}", app_name);
+                                }
+                            }
+                        }
+                    }
+
+                    class_decl.add_method(
+                        sel!(handleNotification:),
+                        handle_notification as extern "C" fn(*mut AnyObject, Sel, *mut AnyObject),
+                    );
+
+                    let observer_class = class_decl.register();
+
+                    let observer: *mut AnyObject = msg_send![observer_class, new];
+
+                    // Define the notification name
+                    let notification_name = NSString::from_str("NSWorkspaceDidActivateApplicationNotification");
+
+                    // Register for notifications
+                    let _: () = msg_send![nc,
+                        addObserver:observer
+                        selector:sel!(handleNotification:)
+                        name:&*notification_name
+                        object:ptr::null_mut::<AnyObject>()
+                    ];
+
+                    // Keep thread running
+                    while *running.lock().unwrap() {
+                        // Sleep to prevent high CPU usage
+                        thread::sleep(Duration::from_millis(100));
+                    }
+
+                    // Clean up before thread exits
+                    let notification_name = NSString::from_str("NSWorkspaceDidActivateApplicationNotification");
+                    let _: () = msg_send![nc,
+                        removeObserver:observer
+                        name:&*notification_name
+                        object:ptr::null_mut::<AnyObject>()
+                    ];
+
+                    let _: () = msg_send![observer, release];
+                    let _: () = msg_send![pool, drain];
+                } else {
+                    tracing::error!("Failed to create a unique observer class after {} attempts", attempts);
+                    return;
                 }
-
-                // Clean up before thread exits
-                let notification_name = NSString::from_str("NSWorkspaceDidActivateApplicationNotification");
-                let _: () = msg_send![nc,
-                    removeObserver:observer
-                    name:&*notification_name
-                    object:ptr::null_mut::<AnyObject>()
-                ];
-
-                let _: () = msg_send![observer, release];
-                let _: () = msg_send![pool, drain];
             }
         }));
     }
