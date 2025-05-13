@@ -108,16 +108,20 @@ impl Provider for AppSenseProvider {
 
                             if !app.is_null() {
                                 let name: *mut AnyObject = msg_send![app, localizedName];
-                                let bundle_id: *mut AnyObject = msg_send![app, bundleIdentifier];
+                                // let bundle_id: *mut AnyObject = msg_send![app, bundleIdentifier];
 
-                                if !name.is_null() && !bundle_id.is_null() {
+                                if !name.is_null() {
                                     let name_str: &NSString = unsafe { &*(name as *const NSString) };
                                     let app_name = name_str.to_string();
-
-                                    let bundle_str: &NSString = unsafe { &*(bundle_id as *const NSString) };
-                                    let bundle = bundle_str.to_string();
-
                                     tracing::info!("Application changed to: {:?}", app_name);
+
+                                    // Handle different applications with match
+                                    match app_name.as_str() {
+                                        "Code" => tracing::info!("VS Code detected, performing specific action"),
+                                        "Google Chrome" => tracing::info!("Safari detected, performing specific action"),
+                                        "iTerm2" => tracing::info!("Terminal detected"),
+                                        _ => tracing::info!("Other app: {}", app_name),
+                                    }
                                 }
                             }
                         }
