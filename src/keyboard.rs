@@ -204,7 +204,8 @@ fn start_write(
                 // Process data...
                 match device.write(received.as_mut()) {
                     Ok(bytes_written) => {
-                        tracing::debug!("{:?}: successfully wrote {} bytes", name, bytes_written);
+                        tracing::info!("{:?}: successfully wrote {} bytes", name, bytes_written);
+                        tracing::info!("{:?}: successfully wrote :{:?}", name, received);
                     }
                     Err(err) => {
                         tracing::error!("{:?}: failed to write to device: {}", name, err);

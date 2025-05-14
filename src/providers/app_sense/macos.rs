@@ -5,6 +5,7 @@ use std::ptr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use tokio::sync::broadcast;
 
 use crate::providers::_base::Provider;
 
@@ -18,19 +19,36 @@ pub struct AppSenseProvider {
     active_app: Arc<Mutex<String>>,
     running: Arc<Mutex<bool>>,
     thread_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
+    host_to_device_sender: broadcast::Sender<Vec<u8>>,
 }
 
 // Global state for callback
 static mut ACTIVE_APP_PTR: Option<*const Arc<Mutex<String>>> = None;
+static mut ACTIVE_APP_PROVIDER_PTR: Option<*const AppSenseProvider> = None;
 
 impl AppSenseProvider {
-    pub fn new() -> Box<dyn Provider> {
+    pub fn new(host_to_device_sender: broadcast::Sender<Vec<u8>>) -> Box<dyn Provider> {
         let provider = AppSenseProvider {
             active_app: Arc::new(Mutex::new(String::new())),
             running: Arc::new(Mutex::new(false)),
             thread_handle: Arc::new(Mutex::new(None)),
+            host_to_device_sender,
         };
         return Box::new(provider);
+    }
+    fn create_app_command(app_name: &str) -> Option<Vec<u8>> {
+        // Format: [DataType, 0xCE (command type), app_code, 0x00, 0x00...]
+        match app_name {
+            "Code" => Some(vec![
+                204, 204, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+            "Google Chrome" => Some(vec![0, 206, 2, 0, 0, 0, 0, 0]),
+            "iTerm2" => Some(vec![
+                204, 204, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+            "Finder" => Some(vec![0, 206, 0, 0, 0, 0, 0, 0]),
+            _ => None,
+        }
     }
 }
 
@@ -47,6 +65,7 @@ impl Provider for AppSenseProvider {
         // Set global pointer
         unsafe {
             ACTIVE_APP_PTR = Some(&active_app as *const _);
+            ACTIVE_APP_PROVIDER_PTR = Some(self as *const _);
         }
 
         *self.thread_handle.lock().unwrap() = Some(thread::spawn(move || {
@@ -117,9 +136,34 @@ impl Provider for AppSenseProvider {
 
                                     // Handle different applications with match
                                     match app_name.as_str() {
-                                        "Code" => tracing::info!("VS Code detected, performing specific action"),
-                                        "Google Chrome" => tracing::info!("Safari detected, performing specific action"),
-                                        "iTerm2" => tracing::info!("Terminal detected"),
+                                        "Code" => {
+                                            tracing::info!("VS Code detected, sending layer 1 command");
+                                            // Send command using the stored sender
+                                            if let Some(command) = AppSenseProvider::create_app_command("Code") {
+                                                let _ = unsafe {
+                                                    if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                        let provider = &*ptr;
+                                                        provider.host_to_device_sender.send(command)
+                                                    } else {
+                                                        Err(broadcast::error::SendError(vec![]))
+                                                    }
+                                                };
+                                            }
+                                        }
+                                        "Google Chrome" => {
+                                            tracing::info!("Chrome detected, sending layer 2 command");
+                                            if let Some(command) = AppSenseProvider::create_app_command("Google Chrome") {
+                                                let _ = unsafe {
+                                                    if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                        let provider = &*ptr;
+                                                        provider.host_to_device_sender.send(command)
+                                                    } else {
+                                                        Err(broadcast::error::SendError(vec![]))
+                                                    }
+                                                };
+                                            }
+                                        }
+                                        // Similar patterns for other apps
                                         _ => tracing::info!("Other app: {}", app_name),
                                     }
                                 }
@@ -181,6 +225,7 @@ impl Provider for AppSenseProvider {
 
             unsafe {
                 ACTIVE_APP_PTR = None;
+                ACTIVE_APP_PROVIDER_PTR = None;
             }
         }
     }

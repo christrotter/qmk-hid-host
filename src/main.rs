@@ -79,7 +79,7 @@ fn get_providers(
         // VolumeProvider::new(host_to_device_sender.clone()),
         // LayoutProvider::new(host_to_device_sender.clone()),
         RelayProvider::new(host_to_device_sender.clone(), device_to_host_sender.clone()),
-        AppSenseProvider::new(),
+        AppSenseProvider::new(host_to_device_sender.clone()),
     ];
 }
 
