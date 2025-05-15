@@ -51,6 +51,9 @@ impl AppSenseProvider {
             "Fusion" => Some(vec![
                 207, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]),
+            "Other" => Some(vec![
+                207, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
             _ => None,
         }
     }
@@ -168,7 +171,19 @@ impl Provider for AppSenseProvider {
                                             }
                                         }
                                         // Similar patterns for other apps
-                                        _ => tracing::info!("Other app: {}", app_name),
+                                        _ => {
+                                            tracing::info!("Other app: {}", app_name);
+                                            if let Some(command) = AppSenseProvider::create_app_command("Other") {
+                                                let _ = unsafe {
+                                                    if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                        let provider = &*ptr;
+                                                        provider.host_to_device_sender.send(command)
+                                                    } else {
+                                                        Err(broadcast::error::SendError(vec![]))
+                                                    }
+                                                };
+                                            }
+                                        }
                                     }
                                 }
                             }
