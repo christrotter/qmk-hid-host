@@ -157,7 +157,8 @@ const API_ENDPOINT: &str = "http://192.168.86.43/json/state"; // this needs to b
 fn make_wled_api_call(name: &String, data: &[u8; 32]) {
     tracing::info!("{:?}: API call type 1 with data {:?}", name, data);
     // Add logic for API call type 1
-    let layer = data[2];
+    // todo does this need to change w. pid paradigm?
+    let layer = data[3];
     tracing::info!("Changing to layer: {}", layer);
     // Create a blocking HTTP client
     let client = Client::new();
@@ -242,7 +243,8 @@ fn start_read(
                 Ok(result) if result > 0 => {
                     // Process data...
                     if result > 0 {
-                        if data[1] == 206 {
+                        // todo this will have to change to match the new pid paradigm
+                        if data[2] == 5 {
                             tracing::debug!("{:?}: CE found {:?}", name, data);
                             make_wled_api_call(&name, &data);
                         }

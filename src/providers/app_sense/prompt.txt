@@ -1,3 +1,0 @@
-We need to register with the notification center, to listen for didActivateApplicationNotification events and print the event's NSRunningNotification as a string.
-This should happen inside a long-running thread that stores the current active application as a gettable string.
-The AppSenseProvider should poll the long-running thread's gettable string every 500ms and return it as a string.

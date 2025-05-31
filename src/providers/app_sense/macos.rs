@@ -38,21 +38,19 @@ impl AppSenseProvider {
     }
     fn create_app_command(app_name: &str) -> Option<Vec<u8>> {
         // Format: [DataType, 0xCE (command type), app_code, 0x00, 0x00...]
+        // 186,206 = 0xBACE, our pid for the app sense provider
         match app_name {
             "Code" => Some(vec![
-                207, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ]),
-            "iTerm2" => Some(vec![
-                207, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                186, 206, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]),
             "Google Chrome" => Some(vec![
-                207, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                186, 206, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]),
             "Fusion" => Some(vec![
-                207, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                186, 206, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]),
             "Other" => Some(vec![
-                207, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                186, 206, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]),
             _ => None,
         }
@@ -157,9 +155,10 @@ impl Provider for AppSenseProvider {
                                                 };
                                             }
                                         }
-                                        "Google Chrome" => {
-                                            tracing::info!("Chrome detected, sending layer 2 command");
-                                            if let Some(command) = AppSenseProvider::create_app_command("Google Chrome") {
+                                        "Fusion" => {
+                                            tracing::info!("Fusion detected, sending layer 1 command");
+                                            // Send command using the stored sender
+                                            if let Some(command) = AppSenseProvider::create_app_command("Fusion") {
                                                 let _ = unsafe {
                                                     if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
                                                         let provider = &*ptr;
@@ -170,6 +169,19 @@ impl Provider for AppSenseProvider {
                                                 };
                                             }
                                         }
+                                        // "Google Chrome" => {
+                                        //     tracing::info!("Chrome detected, sending layer 2 command");
+                                        //     if let Some(command) = AppSenseProvider::create_app_command("Google Chrome") {
+                                        //         let _ = unsafe {
+                                        //             if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                        //                 let provider = &*ptr;
+                                        //                 provider.host_to_device_sender.send(command)
+                                        //             } else {
+                                        //                 Err(broadcast::error::SendError(vec![]))
+                                        //             }
+                                        //         };
+                                        //     }
+                                        // }
                                         // Similar patterns for other apps
                                         _ => {
                                             tracing::info!("Other app: {}", app_name);

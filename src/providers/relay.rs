@@ -2,8 +2,6 @@ use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::data_type::DataType;
-
 use super::_base::Provider;
 
 pub struct RelayProvider {
@@ -38,7 +36,6 @@ impl Provider for RelayProvider {
 
                 tracing::debug!("Relay Provider: waiting for data...");
                 if let Ok(mut data) = relay_subscriber.blocking_recv() {
-                    data[0] = DataType::RelayToDevice as u8;
                     if let Err(e) = host_to_device_sender.send(data) {
                         tracing::error!("Relay Provider failed to send data: {:?}", e);
                     }
