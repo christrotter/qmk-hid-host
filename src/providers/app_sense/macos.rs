@@ -142,7 +142,7 @@ impl Provider for AppSenseProvider {
                                     // Handle different applications with match
                                     match app_name.as_str() {
                                         "Code" => {
-                                            tracing::info!("VS Code detected, sending layer 1 command");
+                                            tracing::info!("VS Code detected.");
                                             // Send command using the stored sender
                                             if let Some(command) = AppSenseProvider::create_app_command("Code") {
                                                 let _ = unsafe {
@@ -156,7 +156,7 @@ impl Provider for AppSenseProvider {
                                             }
                                         }
                                         "Fusion" => {
-                                            tracing::info!("Fusion detected, sending layer 1 command");
+                                            tracing::info!("Fusion detected.");
                                             // Send command using the stored sender
                                             if let Some(command) = AppSenseProvider::create_app_command("Fusion") {
                                                 let _ = unsafe {
@@ -169,19 +169,19 @@ impl Provider for AppSenseProvider {
                                                 };
                                             }
                                         }
-                                        // "Google Chrome" => {
-                                        //     tracing::info!("Chrome detected, sending layer 2 command");
-                                        //     if let Some(command) = AppSenseProvider::create_app_command("Google Chrome") {
-                                        //         let _ = unsafe {
-                                        //             if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
-                                        //                 let provider = &*ptr;
-                                        //                 provider.host_to_device_sender.send(command)
-                                        //             } else {
-                                        //                 Err(broadcast::error::SendError(vec![]))
-                                        //             }
-                                        //         };
-                                        //     }
-                                        // }
+                                        "Google Chrome" => {
+                                            tracing::info!("Chrome detected.");
+                                            if let Some(command) = AppSenseProvider::create_app_command("Google Chrome") {
+                                                let _ = unsafe {
+                                                    if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                        let provider = &*ptr;
+                                                        provider.host_to_device_sender.send(command)
+                                                    } else {
+                                                        Err(broadcast::error::SendError(vec![]))
+                                                    }
+                                                };
+                                            }
+                                        }
                                         // Similar patterns for other apps
                                         _ => {
                                             tracing::info!("Other app: {}", app_name);
