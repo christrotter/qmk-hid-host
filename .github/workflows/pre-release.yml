@@ -92,8 +92,6 @@ jobs:
   pre-release:
     name: Pre-Release
     needs:
-      - build-windows
-      - build-ubuntu
       - build-macos
     runs-on: ubuntu-latest
     permissions:
