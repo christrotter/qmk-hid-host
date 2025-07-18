@@ -49,6 +49,9 @@ impl AppSenseProvider {
             "Fusion" => Some(vec![
                 186, 206, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]),
+            "KiCad" => Some(vec![
+                186, 206, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
             "Other" => Some(vec![
                 186, 206, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ]),
@@ -172,6 +175,19 @@ impl Provider for AppSenseProvider {
                                         "Google Chrome" => {
                                             tracing::info!("Chrome detected.");
                                             if let Some(command) = AppSenseProvider::create_app_command("Google Chrome") {
+                                                let _ = unsafe {
+                                                    if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                        let provider = &*ptr;
+                                                        provider.host_to_device_sender.send(command)
+                                                    } else {
+                                                        Err(broadcast::error::SendError(vec![]))
+                                                    }
+                                                };
+                                            }
+                                        }
+                                        "KiCad" => {
+                                            tracing::info!("KiCad detected.");
+                                            if let Some(command) = AppSenseProvider::create_app_command("KiCad") {
                                                 let _ = unsafe {
                                                     if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
                                                         let provider = &*ptr;
