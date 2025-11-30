@@ -145,7 +145,7 @@ impl Provider for AppSenseProvider {
                                     // Handle different applications with match
                                     match app_name.as_str() {
                                         "Code" => {
-                                            tracing::info!("VS Code detected.");
+                                            // tracing::info!("VS Code detected.");
                                             // Send command using the stored sender
                                             if let Some(command) = AppSenseProvider::create_app_command("Code") {
                                                 let _ = unsafe {
@@ -159,7 +159,7 @@ impl Provider for AppSenseProvider {
                                             }
                                         }
                                         "Fusion" => {
-                                            tracing::info!("Fusion detected.");
+                                            // tracing::info!("Fusion detected.");
                                             // Send command using the stored sender
                                             if let Some(command) = AppSenseProvider::create_app_command("Fusion") {
                                                 let _ = unsafe {
@@ -173,7 +173,7 @@ impl Provider for AppSenseProvider {
                                             }
                                         }
                                         "Google Chrome" => {
-                                            tracing::info!("Chrome detected.");
+                                            // tracing::info!("Chrome detected.");
                                             if let Some(command) = AppSenseProvider::create_app_command("Google Chrome") {
                                                 let _ = unsafe {
                                                     if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
@@ -186,7 +186,7 @@ impl Provider for AppSenseProvider {
                                             }
                                         }
                                         "KiCad" => {
-                                            tracing::info!("KiCad detected.");
+                                            // tracing::info!("KiCad detected.");
                                             if let Some(command) = AppSenseProvider::create_app_command("KiCad") {
                                                 let _ = unsafe {
                                                     if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
@@ -200,7 +200,7 @@ impl Provider for AppSenseProvider {
                                         }
                                         // Similar patterns for other apps
                                         _ => {
-                                            tracing::info!("Other app: {}", app_name);
+                                            // tracing::info!("Other app: {}", app_name);
                                             if let Some(command) = AppSenseProvider::create_app_command("Other") {
                                                 let _ = unsafe {
                                                     if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {

@@ -156,9 +156,8 @@ const API_ENDPOINT: &str = "http://192.168.86.43/json/state"; // this needs to b
 
 fn make_wled_api_call(name: &String, data: &[u8; 32]) {
     tracing::info!("{:?}: API call type 1 with data {:?}", name, data);
-    // Add logic for API call type 1
-    // todo does this need to change w. pid paradigm?
-    let layer = data[3];
+    // only the keyboard should be sending this data
+    let layer = data[3] + 1; // this is the important part; also have to increment by 1 b/c wled layers do not start at 0
     tracing::info!("Changing to layer: {}", layer);
     // Create a blocking HTTP client
     let client = Client::new();
@@ -205,8 +204,8 @@ fn start_write(
                 // Process data...
                 match device.write(received.as_mut()) {
                     Ok(bytes_written) => {
-                        tracing::info!("{:?}: successfully wrote {} bytes", name, bytes_written);
-                        tracing::info!("{:?}: successfully wrote :{:?}", name, received);
+                        // tracing::info!("{:?}: successfully wrote {} bytes", name, bytes_written);
+                        // tracing::info!("{:?}: successfully wrote :{:?}", name, received);
                     }
                     Err(err) => {
                         tracing::error!("{:?}: failed to write to device: {}", name, err);
@@ -245,7 +244,7 @@ fn start_read(
                     if result > 0 {
                         // todo this will have to change to match the new pid paradigm
                         if data[2] == 5 {
-                            tracing::debug!("{:?}: CE found {:?}", name, data);
+                            // tracing::debug!("{:?}: CE found {:?}", name, data);
                             make_wled_api_call(&name, &data);
                         }
                     }
