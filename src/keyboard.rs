@@ -214,6 +214,7 @@ fn start_write(
                         break;
                     }
                 }
+                // every 5 seconds we want to broadcast a heartbeat message of 0x00
             }
         }
         tracing::debug!("{:?}: write thread terminated", name);

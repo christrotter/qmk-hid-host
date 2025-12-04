@@ -41,6 +41,13 @@ fn main() {
     let (host_to_device_sender, _) = broadcast::channel::<Vec<u8>>(1);
     let (device_to_host_sender, _) = broadcast::channel::<Vec<u8>>(1);
 
+    let heartbeat_sender = host_to_device_sender.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        tracing::info!("Sending heartbeat [0x00; 32] to device(s)");
+        let _ = heartbeat_sender.send(vec![0x06; 32]);
+    });
+
     let args = Args::parse();
     let config = load_config(args.config.unwrap_or("./qmk-hid-host.json".into()));
     let reconnect_delay = config.reconnect_delay.unwrap_or(1000);
