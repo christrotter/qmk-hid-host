@@ -4,7 +4,7 @@ use std::sync::Arc;
 use hidapi::{DeviceInfo, HidApi, HidDevice};
 use tokio::sync::{broadcast, mpsc};
 
-use crate::config::Device;
+use crate::config::{get_config, Device};
 use reqwest::blocking::Client;
 use serde_json::json;
 use std::time::Duration;
@@ -152,8 +152,6 @@ impl Keyboard {
     }
 }
 
-const API_ENDPOINT: &str = "http://192.168.86.62/json/state"; // this needs to be config
-
 fn make_wled_api_call(name: &String, data: &[u8; 32]) {
     tracing::info!("{:?}: API call type 1 with data {:?}", name, data);
     // only the keyboard should be sending this data
@@ -168,7 +166,8 @@ fn make_wled_api_call(name: &String, data: &[u8; 32]) {
     });
 
     // Make the API call
-    match client.post(API_ENDPOINT).timeout(Duration::from_secs(5)).json(&payload).send() {
+    let api_endpoint = &get_config().api_endpoint;
+    match client.post(api_endpoint).timeout(Duration::from_secs(5)).json(&payload).send() {
         Ok(response) => {
             if response.status().is_success() {
                 tracing::debug!("{}: API call succeeded: {:?}", name, response.text().unwrap_or_default());

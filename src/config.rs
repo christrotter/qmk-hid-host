@@ -5,6 +5,7 @@ use std::{path::PathBuf, sync::OnceLock};
 pub struct Config {
     pub devices: Vec<Device>,
     pub layouts: Vec<String>,
+    pub api_endpoint: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reconnect_delay: Option<u64>,
 }
@@ -41,6 +42,7 @@ pub fn load_config(path: PathBuf) -> &'static Config {
             usage_page: None,
         }],
         layouts: vec!["en".to_string()],
+        api_endpoint: String::new(),
         reconnect_delay: None,
     };
 
@@ -48,6 +50,12 @@ pub fn load_config(path: PathBuf) -> &'static Config {
         let config = serde_json::from_str::<Config>(&file)
             .map_err(|e| tracing::error!("Incorrect config file: {}", e))
             .unwrap();
+
+        // Validate that api_endpoint is not empty
+        if config.api_endpoint.is_empty() {
+            panic!("ERROR: api_endpoint is not configured in {:?}. Please set a valid API endpoint in the config file.", path);
+        }
+
         return CONFIG.get_or_init(|| config);
     }
 
