@@ -9,6 +9,12 @@ use tokio::sync::broadcast;
 
 use crate::providers::_base::Provider;
 
+// ============================================================================
+// CHROME TAB DETECTION - Import chrome_tab module
+// ============================================================================
+use super::chrome_tab::ChromeTabPoller;
+// ============================================================================
+
 /*
 prompt:
 Use the entire project as reference.  We need to create an AppSense provider with a distinct long-running thread that registers with the notification center, to listen for didActivateApplicationNotification events and store the event's NSRunningNotification as a string.
@@ -20,6 +26,11 @@ pub struct AppSenseProvider {
     running: Arc<Mutex<bool>>,
     thread_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
     host_to_device_sender: broadcast::Sender<Vec<u8>>,
+    // ========================================================================
+    // CHROME TAB DETECTION - Flag to track if Chrome is currently focused
+    // ========================================================================
+    chrome_focused: Arc<Mutex<bool>>,
+    // ========================================================================
 }
 
 // Global state for callback
@@ -33,6 +44,11 @@ impl AppSenseProvider {
             running: Arc::new(Mutex::new(false)),
             thread_handle: Arc::new(Mutex::new(None)),
             host_to_device_sender,
+            // ====================================================================
+            // CHROME TAB DETECTION - Initialize chrome_focused flag to false
+            // ====================================================================
+            chrome_focused: Arc::new(Mutex::new(false)),
+            // ====================================================================
         };
         return Box::new(provider);
     }
@@ -58,12 +74,61 @@ impl AppSenseProvider {
             _ => None,
         }
     }
+
+    // ========================================================================
+    // CHROME TAB DETECTION - Create command for Chrome tab changes
+    // Creates a command that includes a hash of the tab URL to identify
+    // different tabs. The hash is placed in bytes 4-11 (8 bytes).
+    //
+    // UPDATED: Now sends domain name instead of title for stability
+    //
+    // Format: [186, 206, 2, 2, hash[0..8], domain_bytes[0..20]]
+    // - Bytes 0-1: Provider ID (0xBACE = 186, 206)
+    // - Byte 2: Command type (2 = Chrome tab info)
+    // - Byte 3: App code (2 = Chrome)
+    // - Bytes 4-11: URL hash (8 bytes, u64)
+    // - Bytes 12-31: Domain name (e.g., "www.google.com", up to 20 bytes)
+    // ========================================================================
+    fn create_chrome_tab_command(url: &str, domain: &str) -> Vec<u8> {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut command = vec![186, 206, 2, 2]; // Provider ID, command type 2, Chrome app code
+
+        // Hash the URL to create a unique identifier (8 bytes)
+        let mut hasher = DefaultHasher::new();
+        url.hash(&mut hasher);
+        let url_hash = hasher.finish();
+        command.extend_from_slice(&url_hash.to_le_bytes());
+
+        // ====================================================================
+        // DOMAIN EXTRACTION - Send domain instead of title
+        // Add first 20 bytes of domain (truncate if needed)
+        // ====================================================================
+        let domain_bytes = domain.as_bytes();
+        let domain_len = std::cmp::min(20, domain_bytes.len());
+        command.extend_from_slice(&domain_bytes[..domain_len]);
+        // ====================================================================
+
+        // Pad to 32 bytes
+        while command.len() < 32 {
+            command.push(0);
+        }
+
+        command
+    }
+    // ========================================================================
 }
 
 impl Provider for AppSenseProvider {
     fn start(&self) {
         let active_app = self.active_app.clone();
         let running = self.running.clone();
+        // ====================================================================
+        // CHROME TAB DETECTION - Clone chrome_focused for thread
+        // ====================================================================
+        let chrome_focused = self.chrome_focused.clone();
+        // ====================================================================
 
         {
             let mut is_running = running.lock().unwrap();
@@ -157,6 +222,18 @@ impl Provider for AppSenseProvider {
                                                     }
                                                 };
                                             }
+                                            // ====================================================
+                                            // CHROME TAB DETECTION - Clear chrome_focused flag
+                                            // ====================================================
+                                            unsafe {
+                                                if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                    let provider = &*ptr;
+                                                    if let Ok(mut focused) = provider.chrome_focused.lock() {
+                                                        *focused = false;
+                                                    }
+                                                }
+                                            }
+                                            // ====================================================
                                         }
                                         "Fusion" => {
                                             // tracing::info!("Fusion detected.");
@@ -171,6 +248,18 @@ impl Provider for AppSenseProvider {
                                                     }
                                                 };
                                             }
+                                            // ====================================================
+                                            // CHROME TAB DETECTION - Clear chrome_focused flag
+                                            // ====================================================
+                                            unsafe {
+                                                if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                    let provider = &*ptr;
+                                                    if let Ok(mut focused) = provider.chrome_focused.lock() {
+                                                        *focused = false;
+                                                    }
+                                                }
+                                            }
+                                            // ====================================================
                                         }
                                         "Google Chrome" => {
                                             // tracing::info!("Chrome detected.");
@@ -184,6 +273,18 @@ impl Provider for AppSenseProvider {
                                                     }
                                                 };
                                             }
+                                            // ====================================================
+                                            // CHROME TAB DETECTION - Set chrome_focused flag
+                                            // ====================================================
+                                            unsafe {
+                                                if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                    let provider = &*ptr;
+                                                    if let Ok(mut focused) = provider.chrome_focused.lock() {
+                                                        *focused = true;
+                                                    }
+                                                }
+                                            }
+                                            // ====================================================
                                         }
                                         "KiCad" => {
                                             // tracing::info!("KiCad detected.");
@@ -197,6 +298,18 @@ impl Provider for AppSenseProvider {
                                                     }
                                                 };
                                             }
+                                            // ====================================================
+                                            // CHROME TAB DETECTION - Clear chrome_focused flag
+                                            // ====================================================
+                                            unsafe {
+                                                if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                    let provider = &*ptr;
+                                                    if let Ok(mut focused) = provider.chrome_focused.lock() {
+                                                        *focused = false;
+                                                    }
+                                                }
+                                            }
+                                            // ====================================================
                                         }
                                         // Similar patterns for other apps
                                         _ => {
@@ -211,6 +324,18 @@ impl Provider for AppSenseProvider {
                                                     }
                                                 };
                                             }
+                                            // ====================================================
+                                            // CHROME TAB DETECTION - Clear chrome_focused flag
+                                            // ====================================================
+                                            unsafe {
+                                                if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                                    let provider = &*ptr;
+                                                    if let Ok(mut focused) = provider.chrome_focused.lock() {
+                                                        *focused = false;
+                                                    }
+                                                }
+                                            }
+                                            // ====================================================
                                         }
                                     }
                                 }
@@ -238,8 +363,53 @@ impl Provider for AppSenseProvider {
                         object:ptr::null_mut::<AnyObject>()
                     ];
 
+                    // ================================================================
+                    // CHROME TAB DETECTION - Create Chrome tab poller
+                    // Poll every 250ms for tab changes when Chrome is focused
+                    // ================================================================
+                    let mut chrome_poller = ChromeTabPoller::new(250);
+                    // ================================================================
+
                     // Keep thread running
                     while *running.lock().unwrap() {
+                        // ============================================================
+                        // CHROME TAB DETECTION - Poll for Chrome tab changes
+                        // ============================================================
+                        let is_chrome_focused = *chrome_focused.lock().unwrap();
+
+                        if is_chrome_focused {
+                            // Chrome is focused, poll for tab changes
+                            if let Some(tab_info) = chrome_poller.poll() {
+                                // ====================================================
+                                // DOMAIN EXTRACTION - Clean logging with domain
+                                // Info level: Just the domain for clean output
+                                // Debug level: Full URL for detailed debugging
+                                // ====================================================
+                                tracing::info!("Chrome tab changed: {}", tab_info.domain);
+                                tracing::debug!("Chrome tab URL: {}", tab_info.url);
+                                // ====================================================
+                                // Send tab info command to device with domain
+                                // ====================================================
+                                let command = AppSenseProvider::create_chrome_tab_command(
+                                    &tab_info.url,
+                                    &tab_info.domain,  // Pass domain instead of title
+                                );
+                                // ====================================================
+                                let _ = unsafe {
+                                    if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
+                                        let provider = &*ptr;
+                                        provider.host_to_device_sender.send(command)
+                                    } else {
+                                        Err(broadcast::error::SendError(vec![]))
+                                    }
+                                };
+                            }
+                        } else {
+                            // Chrome is not focused, reset the poller
+                            chrome_poller.reset();
+                        }
+                        // ============================================================
+
                         // Sleep to prevent high CPU usage
                         thread::sleep(Duration::from_millis(100));
                     }

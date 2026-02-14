@@ -152,7 +152,7 @@ impl Keyboard {
     }
 }
 
-const API_ENDPOINT: &str = "http://192.168.86.43/json/state"; // this needs to be config
+const API_ENDPOINT: &str = "http://192.168.86.62/json/state"; // this needs to be config
 
 fn make_wled_api_call(name: &String, data: &[u8; 32]) {
     tracing::info!("{:?}: API call type 1 with data {:?}", name, data);
