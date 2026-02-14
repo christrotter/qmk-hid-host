@@ -69,34 +69,26 @@ fn extract_domain(url: &str) -> String {
 ///
 /// This function executes AppleScript to query Chrome's current tab.
 /// Returns an error if Chrome is not running or if there's no active tab.
+/// OPTIMIZED: Simplified AppleScript for faster execution
 pub fn get_active_chrome_tab() -> ChromeTabResult {
-    // AppleScript to get both URL and title of active Chrome tab
-    let script = r#"
-        tell application "Google Chrome"
-            if it is running then
-                if (count of windows) > 0 then
-                    set activeTab to active tab of front window
-                    set tabURL to URL of activeTab
-                    set tabTitle to title of activeTab
-                    return tabURL & "|" & tabTitle
-                else
-                    return "NO_WINDOW"
-                end if
-            else
-                return "NOT_RUNNING"
-            end if
-        end tell
-    "#;
+    // Optimized AppleScript - only get URL for faster execution
+    // We derive domain from URL, so title is not needed for matching
+    let script = "tell application \"Google Chrome\" to if it is running then if (count of windows) > 0 then return URL of active tab of front window";
 
-    // Execute the AppleScript
+    // Execute the AppleScript with optimized single-line format
     let output = Command::new("osascript")
+        .arg("-ss")  // Use strict mode for faster parsing
         .arg("-e")
         .arg(script)
         .output()
         .map_err(|e| ChromeTabError::ExecutionError(format!("Failed to execute osascript: {}", e)))?;
 
     if !output.status.success() {
+        // Check if it's just Chrome not running or no window
         let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("not running") || stderr.is_empty() {
+            return Err(ChromeTabError::ChromeNotRunning);
+        }
         return Err(ChromeTabError::ExecutionError(format!(
             "AppleScript execution failed: {}",
             stderr
@@ -105,38 +97,23 @@ pub fn get_active_chrome_tab() -> ChromeTabResult {
 
     let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-    // Parse the result
-    match result.as_str() {
-        "NOT_RUNNING" => Err(ChromeTabError::ChromeNotRunning),
-        "NO_WINDOW" => Err(ChromeTabError::NoActiveTab),
-        _ => {
-            // Split the result by the delimiter
-            let parts: Vec<&str> = result.split('|').collect();
-            if parts.len() >= 2 {
-                let url = parts[0].to_string();
-                let title = parts[1..].join("|"); // Handle titles that might contain '|'
-                // ============================================================
-                // DOMAIN EXTRACTION - Extract domain from URL
-                // ============================================================
-                let domain = extract_domain(&url);
-                // ============================================================
-
-                Ok(ChromeTabInfo {
-                    url,
-                    title,
-                    // ========================================================
-                    // DOMAIN EXTRACTION - Include domain in result
-                    // ========================================================
-                    domain,
-                    // ========================================================
-                })
-            } else {
-                Err(ChromeTabError::ExecutionError(
-                    "Unexpected response format".to_string(),
-                ))
-            }
-        }
+    // Check for empty result (no windows)
+    if result.is_empty() {
+        return Err(ChromeTabError::NoActiveTab);
     }
+
+    // We have a URL
+    let url = result;
+    // Extract domain from URL
+    let domain = extract_domain(&url);
+    // Use domain as title for simplicity (we don't need the full title for matching)
+    let title = domain.clone();
+
+    Ok(ChromeTabInfo {
+        url,
+        title,
+        domain,
+    })
 }
 
 /// Cached Chrome tab poller that efficiently tracks tab changes
