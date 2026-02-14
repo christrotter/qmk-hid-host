@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::OnceLock};
+use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
 
 fn default_api_endpoint() -> String {
     "http://10.0.0.1/json/state".to_string()
@@ -13,6 +13,8 @@ pub struct Config {
     pub api_endpoint: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reconnect_delay: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chrome_tab_mappings: Option<HashMap<String, String>>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -49,6 +51,7 @@ pub fn load_config(path: PathBuf) -> &'static Config {
         layouts: vec!["en".to_string()],
         api_endpoint: default_api_endpoint(),
         reconnect_delay: None,
+        chrome_tab_mappings: None,
     };
 
     if let Ok(file) = std::fs::read_to_string(&path) {

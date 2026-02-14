@@ -388,13 +388,31 @@ impl Provider for AppSenseProvider {
                                 tracing::info!("Chrome tab changed: {}", tab_info.domain);
                                 tracing::debug!("Chrome tab URL: {}", tab_info.url);
                                 // ====================================================
-                                // Send tab info command to device with domain
+
                                 // ====================================================
-                                let command = AppSenseProvider::create_chrome_tab_command(
-                                    &tab_info.url,
-                                    &tab_info.domain,  // Pass domain instead of title
-                                );
+                                // CHROME TAB MAPPING - Check if domain matches config
+                                // If a mapping exists, send the corresponding app command
+                                // Otherwise, send the "Google Chrome" app command
                                 // ====================================================
+                                let config = crate::config::get_config();
+                                let command = if let Some(mappings) = &config.chrome_tab_mappings {
+                                    if let Some(app_name) = mappings.get(&tab_info.domain) {
+                                        tracing::info!("Chrome tab domain '{}' mapped to app '{}'", tab_info.domain, app_name);
+                                        AppSenseProvider::create_app_command(app_name)
+                                            .unwrap_or_else(|| {
+                                                tracing::warn!("No command found for mapped app '{}', falling back to Google Chrome command", app_name);
+                                                AppSenseProvider::create_app_command("Google Chrome").unwrap()
+                                            })
+                                    } else {
+                                        // No mapping found, send "Google Chrome" app command
+                                        AppSenseProvider::create_app_command("Google Chrome").unwrap()
+                                    }
+                                } else {
+                                    // No mappings configured, send "Google Chrome" app command
+                                    AppSenseProvider::create_app_command("Google Chrome").unwrap()
+                                };
+                                // ====================================================
+
                                 let _ = unsafe {
                                     if let Some(ptr) = ACTIVE_APP_PROVIDER_PTR {
                                         let provider = &*ptr;
