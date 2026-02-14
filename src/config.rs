@@ -4,6 +4,12 @@ fn default_api_endpoint() -> String {
     "http://10.0.0.1/json/state".to_string()
 }
 
+fn default_chrome_tab_mappings() -> Option<HashMap<String, String>> {
+    let mut mappings = HashMap::new();
+    mappings.insert("cad.onshape.com".to_string(), "Fusion".to_string());
+    Some(mappings)
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
@@ -13,7 +19,7 @@ pub struct Config {
     pub api_endpoint: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reconnect_delay: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default = "default_chrome_tab_mappings")]
     pub chrome_tab_mappings: Option<HashMap<String, String>>,
 }
 
@@ -51,7 +57,7 @@ pub fn load_config(path: PathBuf) -> &'static Config {
         layouts: vec!["en".to_string()],
         api_endpoint: default_api_endpoint(),
         reconnect_delay: None,
-        chrome_tab_mappings: None,
+        chrome_tab_mappings: default_chrome_tab_mappings(),
     };
 
     if let Ok(file) = std::fs::read_to_string(&path) {
@@ -59,8 +65,8 @@ pub fn load_config(path: PathBuf) -> &'static Config {
             .map_err(|e| tracing::error!("Incorrect config file: {}", e))
             .unwrap();
 
-        // Check if we need to update the config file (e.g., if api_endpoint was missing)
-        let needs_update = !file.contains("apiEndpoint");
+        // Check if we need to update the config file (e.g., if api_endpoint or chromeTabMappings was missing)
+        let needs_update = !file.contains("apiEndpoint") || !file.contains("chromeTabMappings");
 
         if needs_update {
             let file_content = serde_json::to_string_pretty(&config).unwrap();
