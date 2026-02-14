@@ -1,10 +1,15 @@
 use std::{path::PathBuf, sync::OnceLock};
 
+fn default_api_endpoint() -> String {
+    "http://10.0.0.1/json/state".to_string()
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub devices: Vec<Device>,
     pub layouts: Vec<String>,
+    #[serde(default = "default_api_endpoint")]
     pub api_endpoint: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reconnect_delay: Option<u64>,
@@ -42,7 +47,7 @@ pub fn load_config(path: PathBuf) -> &'static Config {
             usage_page: None,
         }],
         layouts: vec!["en".to_string()],
-        api_endpoint: "http://10.0.0.1/json/state".to_string(),
+        api_endpoint: default_api_endpoint(),
         reconnect_delay: None,
     };
 
@@ -50,6 +55,17 @@ pub fn load_config(path: PathBuf) -> &'static Config {
         let config = serde_json::from_str::<Config>(&file)
             .map_err(|e| tracing::error!("Incorrect config file: {}", e))
             .unwrap();
+
+        // Check if we need to update the config file (e.g., if api_endpoint was missing)
+        let needs_update = !file.contains("apiEndpoint");
+
+        if needs_update {
+            let file_content = serde_json::to_string_pretty(&config).unwrap();
+            std::fs::write(&path, &file_content)
+                .map_err(|e| tracing::error!("Error while updating config file at {:?}: {}", path, e))
+                .unwrap();
+            tracing::info!("Config file updated at {:?} with new fields", path);
+        }
 
         // Validate that api_endpoint is not empty
         if config.api_endpoint.is_empty() {
