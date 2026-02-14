@@ -42,7 +42,7 @@ pub fn load_config(path: PathBuf) -> &'static Config {
             usage_page: None,
         }],
         layouts: vec!["en".to_string()],
-        api_endpoint: String::new(),
+        api_endpoint: "http://10.0.0.1/json/state".to_string(),
         reconnect_delay: None,
     };
 
