@@ -205,7 +205,7 @@ impl Provider for AppSenseProvider {
                                 if !name.is_null() {
                                     let name_str: &NSString = unsafe { &*(name as *const NSString) };
                                     let app_name = name_str.to_string();
-                                    tracing::info!("Application changed to: {:?}", app_name);
+                                    tracing::debug!("Application changed to: {:?}", app_name);
 
                                     // Handle different applications with match
                                     match app_name.as_str() {
@@ -387,7 +387,7 @@ impl Provider for AppSenseProvider {
                                 // Info level: Just the domain for clean output
                                 // Debug level: Full URL for detailed debugging
                                 // ====================================================
-                                tracing::info!("Chrome tab changed: {}", tab_info.domain);
+                                tracing::debug!("Chrome tab changed: {}", tab_info.domain);
                                 tracing::debug!("Chrome tab URL: {}", tab_info.url);
                                 // ====================================================
 
@@ -399,12 +399,14 @@ impl Provider for AppSenseProvider {
                                 let config = crate::config::get_config();
                                 let command = if let Some(mappings) = &config.chrome_tab_mappings {
                                     if let Some(app_name) = mappings.get(&tab_info.domain) {
-                                        tracing::info!("Chrome tab domain '{}' mapped to app '{}'", tab_info.domain, app_name);
-                                        AppSenseProvider::create_app_command(app_name)
-                                            .unwrap_or_else(|| {
-                                                tracing::warn!("No command found for mapped app '{}', falling back to Google Chrome command", app_name);
-                                                AppSenseProvider::create_app_command("Google Chrome").unwrap()
-                                            })
+                                        tracing::debug!("Chrome tab domain '{}' mapped to app '{}'", tab_info.domain, app_name);
+                                        AppSenseProvider::create_app_command(app_name).unwrap_or_else(|| {
+                                            tracing::warn!(
+                                                "No command found for mapped app '{}', falling back to Google Chrome command",
+                                                app_name
+                                            );
+                                            AppSenseProvider::create_app_command("Google Chrome").unwrap()
+                                        })
                                     } else {
                                         // No mapping found, send "Google Chrome" app command
                                         AppSenseProvider::create_app_command("Google Chrome").unwrap()

@@ -156,7 +156,7 @@ fn make_wled_api_call(name: &String, data: &[u8; 32]) {
     tracing::info!("{:?}: API call type 1 with data {:?}", name, data);
     // only the keyboard should be sending this data
     let layer = data[3] + 1; // this is the important part; also have to increment by 1 b/c wled layers do not start at 0
-    tracing::info!("Changing to layer: {}", layer);
+    tracing::debug!("Changing to layer: {}", layer);
     // Create a blocking HTTP client
     let client = Client::new();
 

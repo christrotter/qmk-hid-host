@@ -44,7 +44,7 @@ fn main() {
     let heartbeat_sender = host_to_device_sender.clone();
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(5));
-        tracing::info!("Sending heartbeat [0x00; 32] to device(s)");
+        tracing::debug!("Sending heartbeat [0x00; 32] to device(s)");
         let _ = heartbeat_sender.send(vec![0x06; 32]);
     });
 

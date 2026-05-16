@@ -41,10 +41,7 @@ pub enum ChromeTabError {
 // ============================================================================
 fn extract_domain(url: &str) -> String {
     // Remove protocol (http://, https://, etc.)
-    let without_protocol = url
-        .split("://")
-        .nth(1)
-        .unwrap_or(url);
+    let without_protocol = url.split("://").nth(1).unwrap_or(url);
 
     // Get everything before the first '/' or '?'
     let domain_with_port = without_protocol
@@ -56,10 +53,7 @@ fn extract_domain(url: &str) -> String {
         .unwrap_or(without_protocol);
 
     // Remove port if present
-    let domain = domain_with_port
-        .split(':')
-        .next()
-        .unwrap_or(domain_with_port);
+    let domain = domain_with_port.split(':').next().unwrap_or(domain_with_port);
 
     domain.to_string()
 }
@@ -77,7 +71,7 @@ pub fn get_active_chrome_tab() -> ChromeTabResult {
 
     // Execute the AppleScript with optimized single-line format
     let output = Command::new("osascript")
-        .arg("-ss")  // Use strict mode for faster parsing
+        .arg("-ss") // Use strict mode for faster parsing
         .arg("-e")
         .arg(script)
         .output()
@@ -89,10 +83,7 @@ pub fn get_active_chrome_tab() -> ChromeTabResult {
         if stderr.contains("not running") || stderr.is_empty() {
             return Err(ChromeTabError::ChromeNotRunning);
         }
-        return Err(ChromeTabError::ExecutionError(format!(
-            "AppleScript execution failed: {}",
-            stderr
-        )));
+        return Err(ChromeTabError::ExecutionError(format!("AppleScript execution failed: {}", stderr)));
     }
 
     let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -109,11 +100,7 @@ pub fn get_active_chrome_tab() -> ChromeTabResult {
     // Use domain as title for simplicity (we don't need the full title for matching)
     let title = domain.clone();
 
-    Ok(ChromeTabInfo {
-        url,
-        title,
-        domain,
-    })
+    Ok(ChromeTabInfo { url, title, domain })
 }
 
 /// Cached Chrome tab poller that efficiently tracks tab changes
@@ -157,7 +144,7 @@ impl ChromeTabPoller {
                     // ============================================================
                     // DOMAIN EXTRACTION - Clean logging with domain at info level
                     // ============================================================
-                    tracing::info!("Chrome tab changed: {}", tab_info.domain);
+                    tracing::debug!("Chrome tab changed: {}", tab_info.domain);
                     tracing::debug!("Chrome tab URL: {}", tab_info.url);
                     // ============================================================
                     self.last_tab = Some(tab_info.clone());
